@@ -211,8 +211,15 @@ pub struct Function {
 }
 
 #[derive(Debug)]
+pub struct Loop {
+    condition: Box<dyn Value>,
+    body: CodeBlock,
+}
+
+
+#[derive(Debug)]
 pub struct CodeBlock {
-    statements: Vec<AstNode>,  // A block typically contains a sequence of AST nodes
+    statements: Vec<AstNode>,
 }
 
 #[derive(Debug)]
@@ -356,6 +363,7 @@ pub enum AstNode {
     CodeBlock(CodeBlock),
     AssignmentStatement(AssignmentStatement),
     Operation(Operation),
+    Loop(Loop),
 }
 
 
@@ -441,12 +449,45 @@ impl AstNode {
                         panic!("This probably shouldn't happen");
                     }
                 }
+                TokenType::Keyword => {
+                    if s[i].value == "while" {
+                        let (loop_obj, l) = Self::parse_loop(&s[i..], &variable_lst);
+                        block.statements.push(AstNode::Loop(loop_obj));
+                        i += l;
+                    }
+                    else {
+                        panic!("Unsupported keyword");
+                    }
+                }
                 TokenType::CloseCurlyBrace => break,
-                _ => {}
+                _ => {
+                    panic!("Unsupported syntax at {:?}", &s[i..(i+5)]);
+                }
             }
         }
 
         (block, i)
+    }
+
+    fn parse_loop(s: &[Token], variable_lst: &HashMap<String, DataType>) -> (Loop, usize) {
+        assert_eq!(s[0].token_type, TokenType::Keyword);
+
+        assert_eq!(s[0].value, "while");
+
+        let (condition, i) = Operation::extract_operation(&s[1..], variable_lst);
+
+        let mut idx = i + 1;
+
+        assert_eq!(s[idx].token_type, TokenType::OpenCurlyBrace);
+
+        let (code_block, i) = Self::generate_code_block(&s[idx..]);
+        idx += i;
+
+        let loop_var = Loop {
+            condition: condition,
+            body: code_block,
+        };
+        (loop_var, idx)        
     }
 
     fn generate_expression(s: &[Token], variable_lst: &HashMap<String, DataType>) -> (Box<dyn Value>, usize) {

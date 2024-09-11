@@ -1,6 +1,16 @@
 fn main(string[] cli_args) {
     int x = 10 + 9
     float y = x * 0.23
+
+    while true {
+        int iterator = 10
+        while iterator < 20 {
+            iterator += iterator + 1
+        }
+
+        int v = 10 + iterator
+    }
+
 }
 
 
