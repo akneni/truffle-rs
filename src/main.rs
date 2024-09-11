@@ -1,6 +1,7 @@
 #![allow(unused)]
 mod lexer;
 mod parser;
+mod utils;
 
 use std::{collections::HashSet, default, fs, io::Stdout};
 use parser::AstNode;
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use regex::Regex;
 use lexer::Lexer;
+use utils::VarLst;
 
 fn main() {
     let code = fs::read_to_string("truffle/main.tr")
@@ -31,7 +33,9 @@ fn main() {
     let errors = lexer.validate_syntax();
     println!("\nLexer Errors: {:#?}\n\n\n\n\n", errors);
 
+    let mut var_lst = VarLst::new();
 
-    let s = AstNode::generate_function(&lexer.tokens);
+
+    let s = AstNode::generate_function(&lexer.tokens, &mut var_lst);
     println!("{:#?}", s);
 }

@@ -14,8 +14,7 @@ pub enum TokenType {
     BooleanLiteral,
     Unknown,
     Keyword,
-    FunctionName,
-    VariableName,
+    Object,
     OpenParen,
     CloseParen,
     OpenCurlyBrace,
@@ -113,20 +112,20 @@ impl<'a> Lexer<'a> {
                                 TokenType::Keyword => {
                                     match last_token.value {
                                         "fn" => {
-                                            token_type = TokenType::FunctionName;
+                                            token_type = TokenType::Object;
                                             self.functions.insert(object_name);
 
                                         }
                                         "for" => {
-                                            token_type = TokenType::VariableName;     
+                                            token_type = TokenType::Object;     
                                             self.variables.insert(object_name);                                   
                                         }
                                         _ => {
                                             if self.variables.contains(object_name) {
-                                                token_type = TokenType::VariableName;
+                                                token_type = TokenType::Object;
                                             }
                                             else if self.functions.contains(object_name) {
-                                                token_type = TokenType::FunctionName;
+                                                token_type = TokenType::Object;
                                             }
                                             else {
                                                 panic!("Uninitialized object: `{}`", object_name);
@@ -135,16 +134,16 @@ impl<'a> Lexer<'a> {
                                     }
                                 }
                                 TokenType::DataType => {
-                                    token_type = TokenType::VariableName;
+                                    token_type = TokenType::Object;
                                     let func_name = &self.source[self.pos..counter];
                                     self.variables.insert(func_name);
                                 }                                
                                 _ => {
                                     if self.variables.contains(object_name) {
-                                        token_type = TokenType::VariableName;
+                                        token_type = TokenType::Object;
                                     }
                                     else if self.functions.contains(object_name) {
-                                        token_type = TokenType::FunctionName;
+                                        token_type = TokenType::Object;
                                     }
                                     else {
                                         panic!("Uninitialized object: `{}`", object_name);
@@ -363,8 +362,8 @@ impl<'a> Lexer<'a> {
                     }
 
                     if 
-                        ![TokenType::IntegerLiteral, TokenType::VariableName].contains(&self.tokens[i-1].token_type) || 
-                        ![TokenType::IntegerLiteral, TokenType::VariableName].contains(&self.tokens[i+1].token_type) 
+                        ![TokenType::IntegerLiteral, TokenType::Object].contains(&self.tokens[i-1].token_type) || 
+                        ![TokenType::IntegerLiteral, TokenType::Object].contains(&self.tokens[i+1].token_type) 
                     {
                         errors.push(format!("[Token {}] Error: Invalid range descriptor", i));
                     }

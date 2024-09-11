@@ -3,7 +3,7 @@ use std::{collections::{HashMap, HashSet}, default, fmt::Debug};
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
-use crate::lexer::{Token, TokenType};
+use crate::{lexer::{Token, TokenType}, utils::{DeclaredObjects, VarLst}};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
@@ -278,7 +278,7 @@ impl Operation {
         false
     }
 
-    fn extract_operation(tokens: &[Token], variable_lst: &HashMap<String, DataType>) -> (Box<dyn Value>, usize) {
+    fn extract_operation(tokens: &[Token], variable_lst: &VarLst) -> (Box<dyn Value>, usize) {
         let mut op = Operation {
             opd_1: Box::new(Literal{value:"1".to_string(), dtype: DataType::I64}),
             opd_2: Box::new(Literal{value:"1".to_string(), dtype: DataType::I64}),
@@ -307,13 +307,13 @@ impl Operation {
     /// Preconditions:
     /// - The tokens passed to it have no addition tokens past the end of the operations
     /// - There are no parenthesis in the tokens (if there are, you need to call this recursively)
-    fn extract_operation_h(tokens: &[Token], variable_lst: &HashMap<String, DataType>) -> Box<dyn Value> {
+    fn extract_operation_h(tokens: &[Token], variable_lst: &VarLst) -> Box<dyn Value> {
         let value_tokens = [
             TokenType::FloatLiteral,
             TokenType::StringLiteral,
             TokenType::BooleanLiteral,
             TokenType::IntegerLiteral,
-            TokenType::VariableName,
+            TokenType::Object,
         ];
 
         if tokens.len() == 1 {
@@ -368,12 +368,14 @@ pub enum AstNode {
 
 
 impl AstNode {
-    pub fn generate_function(s: &[Token]) -> Function {
+    pub fn generate_function(s: &[Token], var_lst: &mut VarLst) -> Function {
+        var_lst.push_scope();
+
         if !(s[0].token_type == TokenType::Keyword && s[0].value == "fn") {
             panic!("Error, token list does not start with");
         }
 
-        assert_eq!(s[1].token_type, TokenType::FunctionName);
+        assert_eq!(s[1].token_type, TokenType::Object);
         let mut func = Function{
             name: s[1].value.to_string(),
             parameters: vec![],
@@ -383,7 +385,6 @@ impl AstNode {
         assert_eq!(s[2].token_type, TokenType::OpenParen);
 
         let mut i = 3;
-
         while s[i].token_type != TokenType::CloseParen {
             if s[i].token_type == TokenType::Comma {
                 i += 1;
@@ -393,9 +394,10 @@ impl AstNode {
             assert_eq!(s[i].token_type, TokenType::DataType);
             let var_type = DataType::new(s[i].value);
 
-            assert_eq!(s[i+1].token_type, TokenType::VariableName);
+            assert_eq!(s[i+1].token_type, TokenType::Object);
             let var_name = s[i+1].value.to_string();
 
+            var_lst.insert(var_name.clone(), var_type.clone());
             func.parameters.push(Variable {
                 name: var_name,
                 dtype: var_type,
@@ -404,17 +406,17 @@ impl AstNode {
         }
 
         assert_eq!(s[i+1].token_type, TokenType::OpenCurlyBrace);
-        (func.body, _) = Self::generate_code_block(&s[(i+1)..]);
+        (func.body, _) = Self::generate_code_block(&s[(i+1)..], var_lst);
 
+        var_lst.pop_scope();
         func
     }
 
-    fn generate_code_block(s: &[Token]) -> (CodeBlock, usize) {
+    fn generate_code_block(s: &[Token], var_lst: &mut VarLst) -> (CodeBlock, usize) {
         assert_eq!(s[0].token_type, TokenType::OpenCurlyBrace);
+        var_lst.push_scope();
 
         let mut block = CodeBlock {statements: vec![]};
-
-        let mut variable_lst: HashMap<String, DataType> = HashMap::new();
 
         let mut i = 1;
         loop {
@@ -424,7 +426,7 @@ impl AstNode {
                     continue;
                 }
                 TokenType::DataType => {
-                    if s[i+1].token_type == TokenType::VariableName && s[i+2].token_type == TokenType::AssignmentOperator {
+                    if s[i+1].token_type == TokenType::Object && s[i+2].token_type == TokenType::AssignmentOperator {
                         let var_type = DataType::new(s[i].value);
                         let var_name = s[i+1].value.to_string();
                         let var = Variable {
@@ -432,10 +434,10 @@ impl AstNode {
                             dtype: var_type.clone(),
                         };
                         
-                        variable_lst.insert(var_name, var_type);
+                        var_lst.insert(var_name, var_type);
                         
 
-                        let (val, num_tokens) = Self::generate_expression(&s[i+3..], &variable_lst);
+                        let (val, num_tokens) = Self::generate_expression(&s[i+3..], var_lst);
 
                         let assignment = AssignmentStatement {
                             dst: var,
@@ -451,12 +453,30 @@ impl AstNode {
                 }
                 TokenType::Keyword => {
                     if s[i].value == "while" {
-                        let (loop_obj, l) = Self::parse_loop(&s[i..], &variable_lst);
+                        let (loop_obj, l) = Self::parse_loop(&s[i..], var_lst);
                         block.statements.push(AstNode::Loop(loop_obj));
                         i += l;
                     }
                     else {
                         panic!("Unsupported keyword");
+                    }
+                }
+                TokenType::Object => {
+                    if let Some(dt) = var_lst.get(&s[i].value.to_string()) {
+                        let (op, i) = Operation::extract_operation(&s[(1+2)..], var_lst);
+
+                        let mut assignment = AssignmentStatement {
+                            dst: Variable {
+                                name: s[i].value.to_string(),
+                                dtype: dt
+                            },
+                            src: op,
+                        };
+
+                        block.statements.push()
+                    }
+                    else {
+                        panic!("unknown object");
                     }
                 }
                 TokenType::CloseCurlyBrace => break,
@@ -466,31 +486,35 @@ impl AstNode {
             }
         }
 
+        var_lst.pop_scope();
         (block, i)
     }
 
-    fn parse_loop(s: &[Token], variable_lst: &HashMap<String, DataType>) -> (Loop, usize) {
+    fn parse_loop(s: &[Token], var_lst: &mut VarLst) -> (Loop, usize) {
         assert_eq!(s[0].token_type, TokenType::Keyword);
-
         assert_eq!(s[0].value, "while");
 
-        let (condition, i) = Operation::extract_operation(&s[1..], variable_lst);
+        var_lst.push_scope();
+
+        let (condition, i) = Operation::extract_operation(&s[1..], var_lst);
 
         let mut idx = i + 1;
 
         assert_eq!(s[idx].token_type, TokenType::OpenCurlyBrace);
 
-        let (code_block, i) = Self::generate_code_block(&s[idx..]);
+        let (code_block, i) = Self::generate_code_block(&s[idx..], var_lst);
         idx += i;
 
         let loop_var = Loop {
             condition: condition,
             body: code_block,
         };
+
+        var_lst.pop_scope();
         (loop_var, idx)        
     }
 
-    fn generate_expression(s: &[Token], variable_lst: &HashMap<String, DataType>) -> (Box<dyn Value>, usize) {
+    fn generate_expression(s: &[Token], var_lst: &VarLst) -> (Box<dyn Value>, usize) {
         if !Operation::exists_inline(s) {
             match s[0].token_type {
                 TokenType::FloatLiteral => {
@@ -521,10 +545,10 @@ impl AstNode {
                     };
                     return (Box::new(res), 1);
                 }
-                TokenType::VariableName => {
+                TokenType::Object => {
                     let var_name = s[0].value.to_string();
 
-                    let var_type = match variable_lst.get(&var_name) {
+                    let var_type = match var_lst.get(&var_name) {
                         Some(s) => s,
                         None => panic!("Undefined variable: `{}`", var_name),
                     };
@@ -540,7 +564,7 @@ impl AstNode {
             }
         }
 
-        Operation::extract_operation(s, variable_lst)
+        Operation::extract_operation(s, var_lst)
     }
 }
 

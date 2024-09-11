@@ -4,8 +4,9 @@ fn main(string[] cli_args) {
 
     while true {
         int iterator = 10
+
         while iterator < 20 {
-            iterator += iterator + 1
+            iterator = iterator + 1
         }
 
         int v = 10 + iterator
