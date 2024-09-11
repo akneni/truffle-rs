@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use regex::Regex;
 use lexer::Lexer;
-use utils::VarLst;
+use utils::{FnLst, VarLst};
 
 fn main() {
     let code = fs::read_to_string("truffle/main.tr")
@@ -34,8 +34,8 @@ fn main() {
     println!("\nLexer Errors: {:#?}\n\n\n\n\n", errors);
 
     let mut var_lst = VarLst::new();
+    let mut fn_list = FnLst::new();
 
-
-    let s = AstNode::generate_function(&lexer.tokens, &mut var_lst);
+    let s = AstNode::generate_function(&lexer.tokens, &mut var_lst, &mut fn_list);
     println!("{:#?}", s);
 }

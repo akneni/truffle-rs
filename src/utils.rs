@@ -1,39 +1,5 @@
 use std::collections::HashMap;
-
 use crate::parser::DataType;
-
-pub struct DeclaredObjects<T: PartialOrd + PartialEq> {
-    objects: Vec<Vec<T>>,
-}
-
-impl<T: PartialOrd + PartialEq> DeclaredObjects<T> {
-    pub fn new() -> Self {
-        DeclaredObjects {
-            objects: vec![vec![]]
-        }
-    }
-
-    pub fn push(&mut self, object: T) {
-        self.objects.last_mut().unwrap().push(object);
-    }
-
-    pub fn contains(&self, object: &T) -> bool {
-        for scope in self.objects.iter().rev() {
-            if scope.contains(object) {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn push_scope(&mut self) {
-        self.objects.push(vec![]);
-    }
-
-    pub fn pop_scope(&mut self) {
-        self.objects.pop();
-    }
-}
 
 
 pub struct VarLst {
@@ -66,5 +32,38 @@ impl VarLst {
 
     pub fn pop_scope(&mut self) {
         self.vars.pop();
+    }
+}
+
+pub struct FnLst {
+    funcs: Vec<HashMap<String, (Vec<(String, DataType)>, DataType)>>
+}
+
+impl FnLst {
+    pub fn new() -> Self {
+        FnLst {
+            funcs: vec![HashMap::new()]
+        }
+    }
+
+    pub fn insert(&mut self, var: String, res_type: DataType, args: Vec<(String, DataType)>) {
+        self.funcs.last_mut().unwrap().insert(var, (args, res_type));
+    }
+
+    pub fn get(&self, var: &String) -> Option<(&Vec<(String, DataType)>, DataType)> {
+        for scope in self.funcs.iter().rev() {
+            if let Some(d) = scope.get(var) {
+                return Some((&d.0, d.1.clone()));
+            }
+        }
+        None
+    }
+
+    pub fn push_scope(&mut self) {
+        self.funcs.push(HashMap::new());
+    }
+
+    pub fn pop_scope(&mut self) {
+        self.funcs.pop();
     }
 }

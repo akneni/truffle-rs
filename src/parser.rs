@@ -3,7 +3,7 @@ use std::{collections::{HashMap, HashSet}, default, fmt::Debug};
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
-use crate::{lexer::{Token, TokenType}, utils::{DeclaredObjects, VarLst}};
+use crate::{lexer::{Token, TokenType}, utils::{FnLst, VarLst}};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
@@ -278,7 +278,7 @@ impl Operation {
         false
     }
 
-    fn extract_operation(tokens: &[Token], variable_lst: &VarLst) -> (Box<dyn Value>, usize) {
+    fn extract_operation(tokens: &[Token], variable_lst: &VarLst, fn_lst: &FnLst) -> (Box<dyn Value>, usize) {
         let mut op = Operation {
             opd_1: Box::new(Literal{value:"1".to_string(), dtype: DataType::I64}),
             opd_2: Box::new(Literal{value:"1".to_string(), dtype: DataType::I64}),
@@ -301,13 +301,13 @@ impl Operation {
             length += 1;
         }
 
-        (Self::extract_operation_h(&tokens[..length], variable_lst), length)
+        (Self::extract_operation_h(&tokens[..length], variable_lst, fn_lst), length)
     }
 
     /// Preconditions:
     /// - The tokens passed to it have no addition tokens past the end of the operations
     /// - There are no parenthesis in the tokens (if there are, you need to call this recursively)
-    fn extract_operation_h(tokens: &[Token], variable_lst: &VarLst) -> Box<dyn Value> {
+    fn extract_operation_h(tokens: &[Token], variable_lst: &VarLst, fn_lst: &FnLst) -> Box<dyn Value> {
         let value_tokens = [
             TokenType::FloatLiteral,
             TokenType::StringLiteral,
@@ -318,7 +318,7 @@ impl Operation {
 
         if tokens.len() == 1 {
             if value_tokens.contains(&tokens[0].token_type) {
-                let (val, _) = AstNode::generate_expression(&tokens[0..1], variable_lst);
+                let (val, _) = AstNode::generate_expression(&tokens[0..1], variable_lst, fn_lst);
                 return val;
             }
             else {
@@ -344,8 +344,8 @@ impl Operation {
         }
 
         let mut op = Operation {
-            opd_1: Self::extract_operation_h(&tokens[..op_idx], variable_lst),
-            opd_2: Self::extract_operation_h(&tokens[(op_idx+1)..], variable_lst),
+            opd_1: Self::extract_operation_h(&tokens[..op_idx], variable_lst, fn_lst),
+            opd_2: Self::extract_operation_h(&tokens[(op_idx+1)..], variable_lst, fn_lst),
             op: OperationType::new(&tokens[op_idx]).unwrap(),
             ret_type: DataType::Bool,
         };
@@ -368,7 +368,7 @@ pub enum AstNode {
 
 
 impl AstNode {
-    pub fn generate_function(s: &[Token], var_lst: &mut VarLst) -> Function {
+    pub fn generate_function(s: &[Token], var_lst: &mut VarLst, fn_lst: &mut FnLst) -> Function {
         var_lst.push_scope();
 
         if !(s[0].token_type == TokenType::Keyword && s[0].value == "fn") {
@@ -406,13 +406,13 @@ impl AstNode {
         }
 
         assert_eq!(s[i+1].token_type, TokenType::OpenCurlyBrace);
-        (func.body, _) = Self::generate_code_block(&s[(i+1)..], var_lst);
+        (func.body, _) = Self::generate_code_block(&s[(i+1)..], var_lst, fn_lst);
 
         var_lst.pop_scope();
         func
     }
 
-    fn generate_code_block(s: &[Token], var_lst: &mut VarLst) -> (CodeBlock, usize) {
+    fn generate_code_block(s: &[Token], var_lst: &mut VarLst, fn_lst: &mut FnLst) -> (CodeBlock, usize) {
         assert_eq!(s[0].token_type, TokenType::OpenCurlyBrace);
         var_lst.push_scope();
 
@@ -437,7 +437,7 @@ impl AstNode {
                         var_lst.insert(var_name, var_type);
                         
 
-                        let (val, num_tokens) = Self::generate_expression(&s[i+3..], var_lst);
+                        let (val, num_tokens) = Self::generate_expression(&s[i+3..], var_lst, fn_lst);
 
                         let assignment = AssignmentStatement {
                             dst: var,
@@ -453,7 +453,7 @@ impl AstNode {
                 }
                 TokenType::Keyword => {
                     if s[i].value == "while" {
-                        let (loop_obj, l) = Self::parse_loop(&s[i..], var_lst);
+                        let (loop_obj, l) = Self::parse_loop(&s[i..], var_lst, fn_lst);
                         block.statements.push(AstNode::Loop(loop_obj));
                         i += l;
                     }
@@ -463,7 +463,7 @@ impl AstNode {
                 }
                 TokenType::Object => {
                     if let Some(dt) = var_lst.get(&s[i].value.to_string()) {
-                        let (op, i) = Operation::extract_operation(&s[(1+2)..], var_lst);
+                        let (op, l) = Operation::extract_operation(&s[(i+2)..], var_lst, fn_lst);
 
                         let mut assignment = AssignmentStatement {
                             dst: Variable {
@@ -473,7 +473,8 @@ impl AstNode {
                             src: op,
                         };
 
-                        block.statements.push()
+                        block.statements.push(AstNode::AssignmentStatement(assignment));
+                        i += 2 + l;
                     }
                     else {
                         panic!("unknown object");
@@ -490,19 +491,19 @@ impl AstNode {
         (block, i)
     }
 
-    fn parse_loop(s: &[Token], var_lst: &mut VarLst) -> (Loop, usize) {
+    fn parse_loop(s: &[Token], var_lst: &mut VarLst, fn_lst: &mut FnLst) -> (Loop, usize) {
         assert_eq!(s[0].token_type, TokenType::Keyword);
         assert_eq!(s[0].value, "while");
 
         var_lst.push_scope();
 
-        let (condition, i) = Operation::extract_operation(&s[1..], var_lst);
+        let (condition, i) = Operation::extract_operation(&s[1..], var_lst, fn_lst);
 
         let mut idx = i + 1;
 
         assert_eq!(s[idx].token_type, TokenType::OpenCurlyBrace);
 
-        let (code_block, i) = Self::generate_code_block(&s[idx..], var_lst);
+        let (code_block, i) = Self::generate_code_block(&s[idx..], var_lst, fn_lst);
         idx += i;
 
         let loop_var = Loop {
@@ -514,7 +515,7 @@ impl AstNode {
         (loop_var, idx)        
     }
 
-    fn generate_expression(s: &[Token], var_lst: &VarLst) -> (Box<dyn Value>, usize) {
+    fn generate_expression(s: &[Token], var_lst: &VarLst, fn_lst: &FnLst) -> (Box<dyn Value>, usize) {
         if !Operation::exists_inline(s) {
             match s[0].token_type {
                 TokenType::FloatLiteral => {
@@ -564,7 +565,7 @@ impl AstNode {
             }
         }
 
-        Operation::extract_operation(s, var_lst)
+        Operation::extract_operation(s, var_lst, fn_lst)
     }
 }
 
