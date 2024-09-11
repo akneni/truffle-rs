@@ -1,0 +1,86 @@
+**Truffle** is a statically typed, compiled programming language designed for simplicity and development speed while maintaining high performance.
+
+### Key Features:
+
+- **Statically Typed:** Ensures type safety and early error detection.
+- **Compiled:** Generates efficient machine code for high performance.
+- **Automatic Reference Countring:** Simplifies memory management, eliminating the need for manual management, and borrow checking while providing determinism not possible with a garbage collector. 
+- **Simplified Syntax:** Largely inspired by Rust and Python but with a focus on reducing complexity. For example, all integers are `i64` by default to minimize type variations.
+- **Implicit Returns:** Functions return the last evaluated expression without requiring an explicit return statement.
+- **Python-like f-strings:** Enhances string formatting capabilities, making code more readable and easier to write.
+- **No Semicolons:** Reduces syntactic clutter, making code cleaner and more concise.
+
+---
+
+### File Extension
+The file extension for **Truffle** source code files is `.tr`.
+
+### Structs and Enums
+- Make all structs heap-allocated by default to allow for easy recurrent references without needing a box pointer.
+- Heap-allocate enums as well.
+
+---
+
+### Syntax Changes in Truffle:
+
+- **Structs:**
+  - Constructors are created using a simplified syntax.
+  - References and pointers do not exist in **Truffle**—no borrow checker is needed.
+  - Functions with default parameters are allowed, and mutability is declared with `mut`.
+  
+- **Functions:**
+  - Allow for function overloading.
+  - Python-like generators and async functions are supported.
+  - Implicit returns simplify code structure.
+  
+- **Global Variables:**
+  - Declared with `global const` for constants and `global mut` for mutable globals.
+  - Automatically wrapped in thread-safe blocks (`TrSafe`), ensuring concurrency safety.
+
+---
+
+### Common Syntax:
+
+- **Data Types:** 
+  - `int` maps to `i64`, `uint` to `usize`, and `float` to `f64`.
+  - Strings can use either double or single quotes.
+  - Arrays and dictionaries adopt a Python-like syntax, e.g., `int[] lst = [1, 2, 3]` or `Dict<String, int> d = {"key": 42}`.
+  
+- **Loops and Control Flow:**
+  - Syntax for loops (`for`, `while`, `loop`) and conditionals remains close to many modern langauges.
+  - Single-line if statements are allowed with parentheses for readability.
+  
+- **Comparisons:** 
+  - Standard comparison operators (`>`, `<`, `==`, `!=`, etc.) only work between same types, except for `int` and `float`.
+
+- **Vector and Dictionary Comprehensions:**
+  - Like Python, **Truffle** supports comprehensions for lists and dictionaries.
+
+---
+
+### Safety Features:
+
+- **Compile-Time Error Prevention:** Ensure variables are not named after keywords, types, or functions that already exist in the namespace.
+  
+---
+
+### Performance and Compilation:
+
+- **Speed:** Ideally, **Truffle** will match or surpass the speed of languages like Go.
+- **Compilation Time:** Compilation times are designed to be extremely fast, with an eventual goal of enabling **Truffle** to work within a Jupyter notebook environment.
+
+---
+
+### Project and Package Management:
+
+- The compiler will be named `truffc` and will be written in Rust (with plans to eventually rewrite it in truffle).
+- Truffle will also come with a package manager and build system called `shroom`.
+
+### Project Structure:
+
+The project structure for **Truffle** looks almost identical to Cargo’s:
+- `TruffUp.toml`
+- `TruffUp.lock`
+- `src/`
+- `build/`
+

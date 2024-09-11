@@ -1,0 +1,30 @@
+fn main(string[] cli_args) {
+    int x = 10 + 9
+    float y = x * 0.23
+}
+
+
+
+// fn println() {}
+// 
+// fn is_prime(int x) bool {
+//     if x < 2 {
+//         return false
+//     }
+//     int i = 2
+//     while i*i <= x {
+//         if x % i == 0 {
+//             return false
+//         }
+//         i = i + 1
+//     }
+//     return true
+// }
+// 
+// fn main() {
+//     for i in 0..10 {
+//         if is_prime(i) {
+//             println(i)
+//         }
+//     }
+// }
